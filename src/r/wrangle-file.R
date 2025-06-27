@@ -21,7 +21,7 @@ meta <-
 
 tibbles <-
   map(meta$path, read_xlsx) |>
-  map(\(tbl) rename_all(tbl, str_to_lower)) |>
+  map(\(tbl) rename_with(tbl, str_to_lower)) |>
   set_names(meta$concept)
 
 unique_col_names <- map(tibbles, colnames) |> flatten_chr() |> unique()
