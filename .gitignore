@@ -227,6 +227,7 @@ rsconnect/
 # data
 *.xlsx
 *.csv
+*.parquet
 
 # environment
 .env

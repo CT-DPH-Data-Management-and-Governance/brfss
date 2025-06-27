@@ -2,6 +2,7 @@ library(tidyverse) |> suppressPackageStartupMessages()
 library(readxl)
 library(fs)
 library(stringr)
+library(nanoparquet)
 
 # scope out the files
 excel_files <-
@@ -14,24 +15,18 @@ meta <-
   as_tibble_col(excel_files, "path") |>
   mutate(
     file_name = path_file(path),
-    concept = str_to_lower(file_name) |> path_ext_remove()
+    concept = str_to_lower(file_name) |> path_ext_remove(),
+    concept = str_remove(concept, "_.*$")
   )
 
 tibbles <-
-  map(meta$path, read_xlsx)
-
-tibbles <-
-  map(
-    tibbles,
-    \(tbl) tbl |> rename_all(str_to_lower)
-  ) |>
+  map(meta$path, read_xlsx) |>
+  map(\(tbl) rename_all(tbl, str_to_lower)) |>
   set_names(meta$concept)
 
-
 unique_col_names <- map(tibbles, colnames) |> flatten_chr() |> unique()
-unique_col_names
 
-# quick and dirty
+# quick crosswalk
 lookup <-
   tibble(
     source_name = c(
@@ -83,4 +78,10 @@ pivot_rename <- function(x, y = lookup) {
 }
 
 new_names <-
-  map(tibbles, pivot_rename)
+  map(tibbles, pivot_rename) |>
+  imap(\(x, idx) mutate(x, concept = idx)) |>
+  list_rbind()
+
+path = path_wd("output", "combo", ext = "parquet")
+write_parquet(new_names, path)
+write_csv(new_names, path_ext_set(path, ext = "csv"))
