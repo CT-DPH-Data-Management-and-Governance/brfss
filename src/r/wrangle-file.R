@@ -51,9 +51,9 @@ lookup <-
       "datayear",
       "weightedpercent",
       "for_percent",
-      "uppercl_forn",
+      "uppercl_forn", # need to mark these somehow
       "upperci",
-      "lowercl_forn",
+      "lowercl_forn", # need to mark these somehow
       "lowerci",
       "coeffvar_form",
       "cv",
@@ -75,10 +75,32 @@ lookup <-
     )
   )
 
+
 pivot_rename <- function(x, y = lookup) {
+  x <-
+    x |>
+    mutate(
+      across(everything(), as.character),
+      ci_target = "percent",
+      cv_target = "percent"
+    ) |>
+    rowid_to_column("id")
+
+  # TODO: Test this - are coev and ci for n always together? - they should be...
+  is_freq <- FALSE
+  if (any(str_detect(names(x), "forn|form"))) {
+    is_freq <- TRUE
+  }
+
+  if (is_freq) {
+    x <- x |>
+      mutate(
+        ci_target = "n",
+        cv_target = "n"
+      )
+  }
+
   x |>
-    mutate(across(everything(), as.character)) |>
-    rowid_to_column("id") |>
     pivot_longer(
       cols = where(is.character),
       names_to = "source_name",
@@ -99,6 +121,35 @@ new_names <-
   map(tibbles, pivot_rename) |>
   imap(\(x, idx) mutate(x, concept = idx)) |>
   list_rbind()
+
+mods <- "\\#|\\^|\\*"
+
+# TODO mark the ones where the CI is for n so when
+# CI gets divided by 100 for percents those are skipped
+
+new_names <-
+  new_names |>
+  mutate(
+    percent_modifier = str_extract(percent, mods),
+    percent = str_remove(percent, mods),
+    percent = if_else(percent == "", NA_character_, percent),
+    across(
+      c(
+        year,
+        percent,
+        lcl,
+        ucl,
+        coefficient_variance,
+        n
+      ),
+      as.numeric
+    ),
+    percent = percent / 100,
+    # TODO: test this out - talk to sme
+    across(c(lcl, ucl, coefficient_variance), \(var) {
+      if_else(ci_target == "percent", var / 100, var)
+    })
+  )
 
 path = path_wd("output", "combo", ext = "parquet")
 write_parquet(new_names, path)
