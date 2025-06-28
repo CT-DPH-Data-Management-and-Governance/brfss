@@ -11,19 +11,37 @@ excel_files <-
     glob = "*.xlsx"
   )
 
+# collect some info about the files
 meta <-
   as_tibble_col(excel_files, "path") |>
   mutate(
     file_name = path_file(path),
-    concept = str_to_lower(file_name) |> path_ext_remove(),
-    concept = str_remove(concept, "_.*$")
+    concept = str_remove(file_name, "_.*$"),
   )
 
+# clean up the names
+new_concept <-
+  meta |>
+  pull(concept) |>
+  str_split("(?<=[a-z])(?=[A-Z])") |>
+  map(\(x) paste(x, collapse = "_")) |>
+  as.character() |>
+  str_to_lower() |>
+  as_tibble_col("concept")
+
+# place names back into meta
+meta <-
+  meta |>
+  select(-concept) |>
+  bind_cols(new_concept)
+
+# read and lowercase all the column name variants
 tibbles <-
   map(meta$path, read_xlsx) |>
   map(\(tbl) rename_with(tbl, str_to_lower)) |>
   set_names(meta$concept)
 
+# grab all the unique names so we can map to new names
 unique_col_names <- map(tibbles, colnames) |> flatten_chr() |> unique()
 
 # quick crosswalk
