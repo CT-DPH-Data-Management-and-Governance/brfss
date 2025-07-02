@@ -37,9 +37,30 @@ meta <-
 
 # read and lowercase all the column name variants
 tibbles <-
-  map(meta$path, read_xlsx) |>
+  map(meta$path, read_xlsx)
+
+other_tibbles <-
+  tibbles |>
+  keep(\(tbl) ncol(tbl) > 7)
+
+tibbles <-
+  tibbles |>
+  keep(\(tbl) ncol(tbl) < 8) |>
   map(\(tbl) rename_with(tbl, str_to_lower)) |>
-  set_names(meta$concept)
+  set_names(
+    meta |>
+      filter(!path %in% names(other_tibbles)) |>
+      pull(concept)
+  )
+
+other_tibbles <-
+  other_tibbles |>
+  set_names(
+    meta |>
+      filter(path %in% names(other_tibbles)) |>
+      pull(concept)
+  )
+
 
 # grab all the unique names so we can map to new names
 unique_col_names <- map(tibbles, colnames) |> flatten_chr() |> unique()
@@ -144,10 +165,14 @@ new_names <-
       ),
       as.numeric
     ),
-    percent = percent / 100,
+    percent = round(percent / 100, digits = 3),
     # TODO: test this out - talk to sme
     across(c(lcl, ucl, coefficient_variance), \(var) {
-      if_else(ci_target == "percent", var / 100, var)
+      if_else(
+        ci_target == "percent",
+        round(var / 100, digits = 3),
+        var
+      )
     })
   )
 
