@@ -90,7 +90,7 @@ collapse_names <- function(.data) {
 
 new_names <-
   map(tibbles, collapse_names) |>
-  imap(\(x, idx) mutate(x, concept = idx)) |>
+  imap(\(x, idx) mutate(x, measure = idx)) |>
   list_rbind()
 
 mods <- "\\#|\\^|\\*"
@@ -98,7 +98,7 @@ mods <- "\\#|\\^|\\*"
 # TODO mark the ones where the CI is for n so when
 # CI gets divided by 100 for percents those are skipped
 
-new_names <-
+final_wide <-
   new_names |>
   mutate(
     percent_modifier = str_extract(percent, mods),
@@ -108,24 +108,30 @@ new_names <-
       c(
         year,
         percent,
-        lcl,
-        ucl,
+        lower_confidence_interval,
+        upper_confidence_interval,
         coefficient_variance,
-        n
+        count
       ),
       as.numeric
     ),
-    percent = round(percent / 100, digits = 3),
-    # TODO: test this out - talk to sme
-    across(c(lcl, ucl, coefficient_variance), \(var) {
-      if_else(
-        ci_target == "percent",
-        round(var / 100, digits = 3),
-        var
-      )
-    })
+    across(
+      c(
+        percent,
+        lower_confidence_interval,
+        upper_confidence_interval
+      ),
+      \(col) {
+        round(
+          col / 100,
+          digits = 3
+        )
+      }
+    )
   )
 
+final_long <- final_wide
+
 path = path_wd("output", "combo", ext = "parquet")
-write_parquet(new_names, path)
-write_csv(new_names, path_ext_set(path, ext = "csv"))
+write_parquet(final_wide, path)
+write_csv(final_wide, path_ext_set(path, ext = "csv"))
