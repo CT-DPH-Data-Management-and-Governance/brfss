@@ -65,81 +65,31 @@ other_tibbles <-
 # grab all the unique names so we can map to new names
 unique_col_names <- map(tibbles, colnames) |> flatten_chr() |> unique()
 
-# quick crosswalk
-lookup <-
-  tibble(
-    source_name = c(
-      "datayear",
-      "weightedpercent",
-      "for_percent",
-      "uppercl_forn", # need to mark these somehow
-      "upperci",
-      "lowercl_forn", # need to mark these somehow
-      "lowerci",
-      "coeffvar_form",
-      "cv",
-      "rounded_wfreq",
-      "weightedn"
-    ),
-    name = c(
-      "year",
-      "percent",
-      "percent",
-      "ucl",
-      "ucl",
-      "lcl",
-      "lcl",
-      "coefficient_variance",
-      "coefficient_variance",
-      "n",
-      "n"
+
+collapse_names <- function(.data) {
+  .data |>
+    rename_with(
+      \(col) {
+        case_when(
+          col == "datayear" ~ "year",
+          col == "for_percent" ~ "percent",
+          col == "weightedpercent" ~ "percent",
+          col == "uppercl_forn" ~ "upper_confidence_interval",
+          col == "upperci" ~ "upper_confidence_interval",
+          col == "lowerci" ~ "lower_confidence_interval",
+          col == "lowercl_forn" ~ "lower_confidence_interval",
+          col == "cv" ~ "coefficient_variance",
+          col == "coeffvar_form" ~ "coefficient_variance",
+          col == "rounded_wfreq" ~ "count",
+          col == "weightedn" ~ "count",
+          .default = col
+        )
+      }
     )
-  )
-
-
-pivot_rename <- function(x, y = lookup) {
-  x <-
-    x |>
-    mutate(
-      across(everything(), as.character),
-      ci_target = "percent",
-      cv_target = "percent"
-    ) |>
-    rowid_to_column("id")
-
-  # TODO: Test this - are coev and ci for n always together? - they should be...
-  is_freq <- FALSE
-  if (any(str_detect(names(x), "forn|form"))) {
-    is_freq <- TRUE
-  }
-
-  if (is_freq) {
-    x <- x |>
-      mutate(
-        ci_target = "n",
-        cv_target = "n"
-      )
-  }
-
-  x |>
-    pivot_longer(
-      cols = where(is.character),
-      names_to = "source_name",
-      values_to = "values"
-    ) |>
-    left_join({{ y }}, by = "source_name") |>
-    mutate(name = if_else(is.na(name), source_name, name)) |>
-    select(-source_name) |>
-    pivot_wider(
-      id_cols = id,
-      names_from = name,
-      values_from = values
-    ) |>
-    select(-id)
 }
 
 new_names <-
-  map(tibbles, pivot_rename) |>
+  map(tibbles, collapse_names) |>
   imap(\(x, idx) mutate(x, concept = idx)) |>
   list_rbind()
 
